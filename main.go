@@ -21,6 +21,10 @@ func (node BNode) nkeys() uint16 {
   return binary.LittleEndian.Uint16(node[2:4])
 }
 
+func (node BNode) nbytes() uint16 {   // node size in bytes
+  return node.kvPos(node.nkeys()) // uses the offset value of the last key
+}
+
 // setter
 func (node BNode) setHeader(btype uint16, nkeys uint16) {
   binary.LittleEndian.PutUint16(node[0:2], btype)
@@ -82,4 +86,24 @@ func nodeAppendKV(new BNode, idx uint16, ptr uint64, key []byte, val []byte) {
   copy(new[pos+4+uint16(len(key)):], val)
   // update the offset value for the next key
   new.setOffset(idx+1, new.getOffset(idx)+4+uint16((len(key)+len(val))))
+}
+
+func leafInsert(new BNode, old BNode, idx uint16, key []byte, val []byte) {
+  new.setHeader(BNODE_LEAF, old.nkeys()+1)
+  nodeAppendRange(new, old, 0, 0, idx)    // copy the keys before 'idx'
+  nodeAppend(new, idx, 0, key, val)       // the new key
+  nodeAppendRange(new, old, idx + 1, idx, old.nkeys() - idx)  // keys from 'idx'
+}
+
+// copy multiple keys, values, and pointers into the position
+func nodeAppendRange(new BNode, old BNode, dstNew uint16, srcOld uint16, n uint16) {
+  for i := uint16(0); i < n; i++ {
+    dst, src := dstNew + i, srcOld + i
+    nodeAppendKV(new, dst, old.getPtr(src), old.getKey(src), old.getVal(src))
+  }
+}
+
+func leafUpdate(new BNode, old BNode, idx uint16, key []byte, val []byte) {
+  new.setHeader(BNODE_LEAF, old.nkeys())
+
 }
